@@ -1,0 +1,4 @@
+
+cargo install espup
+espup install  # Xtensa用コンパイラなどが一括インストールされる
+cargo install espflash esp-generate
