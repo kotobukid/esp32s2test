@@ -1,21 +1,26 @@
 [package]
-edition      = "2024"
-name         = "esptes"
+edition = "2024"
+name = "esptes"
 rust-version = "1.88"
-version      = "0.1.0"
+version = "0.1.0"
 
 [[bin]]
 name = "esptes"
 path = "./src/bin/main.rs"
 
 [dependencies]
-esp-hal = { version = "~1.0", features = ["esp32s2"] }
+esp-hal = { version = "~1.0", features = ["esp32s2", "unstable"] }
 
 
 esp-bootloader-esp-idf = { version = "0.4.0", features = ["esp32s2"] }
 
 critical-section = "1.2.0"
 
+# NeoPixel(RMT)用：smart-leds + esp-hal向けアダプタ
+smart-leds = "0.4"
+esp-hal-smartled2 = "0.27.0"
+
+esp-println = {version = "0.16.1", features = ["esp32s2"]}
 
 [profile.dev]
 # Rust debug is too slow.
@@ -23,10 +28,10 @@ critical-section = "1.2.0"
 opt-level = "s"
 
 [profile.release]
-codegen-units    = 1     # LLVM can perform better optimizations using a single thread
-debug            = 2
+codegen-units = 1     # LLVM can perform better optimizations using a single thread
+debug = 2
 debug-assertions = false
-incremental      = false
-lto              = 'fat'
-opt-level        = 's'
-overflow-checks  = false
+incremental = false
+lto = 'fat'
+opt-level = 's'
+overflow-checks = false
