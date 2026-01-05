@@ -15,10 +15,10 @@ use esp_hal::Blocking;
 use esp_hal::rmt::Rmt;
 
 use esp_hal_smartled::color_order::Grb;
-use esp_hal_smartled::{SmartLedsAdapter, Ws2812Timing};
+use esp_hal_smartled::{SmartLedsAdapter, Ws2812bTiming};
+use smart_leds::{SmartLedsWrite, RGB8};
 
 use esp_println::println;
-use smart_leds::{RGB8, SmartLedsWrite};
 
 #[panic_handler]
 fn panic(_: &core::panic::PanicInfo) -> ! {
@@ -33,31 +33,38 @@ esp_bootloader_esp_idf::esp_app_desc!();
 )]
 #[main]
 fn main() -> ! {
+    const LEDS: usize = 1;
+    const RMT_BUFFER_SIZE: usize = 64;
+
     let config = esp_hal::Config::default().with_cpu_clock(CpuClock::max());
     let peripherals = esp_hal::init(config);
 
     println!("boot: start");
 
-    // RMT初期化：周波数が必須 & Resultが返る
     let rmt = Rmt::new(peripherals.RMT, Rate::from_mhz(80)).unwrap();
 
-    // NeoPixel(WS2812) + 色順GRB を想定（違ったら後述）
-    let mut neopixel: SmartLedsAdapter<'_, 1, Blocking, RGB8, Grb, Ws2812Timing> =
+    let mut neopixel: SmartLedsAdapter<'_, RMT_BUFFER_SIZE, Blocking, RGB8, Grb, Ws2812bTiming> =
         SmartLedsAdapter::new(rmt.channel0, peripherals.GPIO18).unwrap();
 
     println!("boot: neopixel adapter ready");
 
-    let on = [RGB8 { r: 0, g: 255, b: 0 }];
-    let off = [RGB8 { r: 0, g: 0, b: 0 }];
+    let white: [RGB8; LEDS] = [RGB8 { r: 36, g: 12, b: 12 }];
+    let off: [RGB8; LEDS] = [RGB8 { r: 0, g: 0, b: 0 }];
 
     loop {
-        println!("set: green");
-        neopixel.write(on.iter().copied()).ok();
+        println!("set: white");
+        if let Err(e) = neopixel.write(white.iter().copied()) {
+            println!("write error (white): {:?}", e);
+        }
+
         let t0 = Instant::now();
         while t0.elapsed() < Duration::from_millis(500) {}
 
         println!("set: off");
-        neopixel.write(off.iter().copied()).ok();
+        if let Err(e) = neopixel.write(off.iter().copied()) {
+            println!("write error (off): {:?}", e);
+        }
+
         let t0 = Instant::now();
         while t0.elapsed() < Duration::from_millis(500) {}
     }
