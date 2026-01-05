@@ -8,6 +8,7 @@
 #![deny(clippy::large_stack_frames)]
 
 use esp_hal::clock::CpuClock;
+use esp_hal::gpio::{Level, Output, OutputConfig};
 use esp_hal::main;
 use esp_hal::time::{Duration, Instant};
 
@@ -29,12 +30,18 @@ fn main() -> ! {
     // generator version: 1.1.0
 
     let config = esp_hal::Config::default().with_cpu_clock(CpuClock::max());
-    let _peripherals = esp_hal::init(config);
+    let peripherals = esp_hal::init(config);
+
+    // GPIO18 を出力(LED)に設定（Io は使わず、Pin driver を直接作る）
+    let mut led = Output::new(peripherals.GPIO18, Level::Low, OutputConfig::default());
 
     loop {
-        let delay_start = Instant::now();
-        while delay_start.elapsed() < Duration::from_millis(500) {}
-    }
+        led.set_high();
+        let t0 = Instant::now();
+        while t0.elapsed() < Duration::from_millis(500) {}
 
-    // for inspiration have a look at the examples at https://github.com/esp-rs/esp-hal/tree/esp-hal-v~1.0/examples
+        led.set_low();
+        let t0 = Instant::now();
+        while t0.elapsed() < Duration::from_millis(500) {}
+    }
 }
