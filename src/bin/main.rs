@@ -9,6 +9,7 @@
 
 use esp_hal::clock::CpuClock;
 use esp_hal::main;
+use esp_hal::rng::Rng;
 use esp_hal::time::{Duration, Instant, Rate};
 
 use esp_hal::Blocking;
@@ -16,7 +17,24 @@ use esp_hal::rmt::Rmt;
 
 use esp_hal_smartled::color_order::Grb;
 use esp_hal_smartled::{SmartLedsAdapter, Ws2812bTiming};
-use smart_leds::{SmartLedsWrite, RGB8};
+use smart_leds::{RGB8, SmartLedsWrite};
+
+#[derive(Clone, Copy)]
+struct MyColor(u8, u8, u8);
+
+impl MyColor {
+    fn half_brightness(self) -> Self {
+        MyColor(self.0 / 2, self.1 / 2, self.2 / 2)
+    }
+
+    fn to_rgb8(self) -> RGB8 {
+        RGB8 {
+            r: self.0,
+            g: self.1,
+            b: self.2,
+        }
+    }
+}
 
 use esp_println::println;
 
@@ -41,6 +59,7 @@ fn main() -> ! {
 
     println!("boot: start");
 
+    let rng = Rng::new();
     let rmt = Rmt::new(peripherals.RMT, Rate::from_mhz(80)).unwrap();
 
     let mut neopixel: SmartLedsAdapter<'_, RMT_BUFFER_SIZE, Blocking, RGB8, Grb, Ws2812bTiming> =
@@ -48,24 +67,47 @@ fn main() -> ! {
 
     println!("boot: neopixel adapter ready");
 
-    let white: [RGB8; LEDS] = [RGB8 { r: 36, g: 12, b: 12 }];
-    let off: [RGB8; LEDS] = [RGB8 { r: 0, g: 0, b: 0 }];
+    let colors = [
+        MyColor(12, 24, 12), // 白
+        MyColor(48, 0, 0),   // 赤
+        MyColor(0, 48, 0),   // 緑
+        MyColor(0, 0, 48),   // 青
+        MyColor(24, 24, 0),  // 黄
+        MyColor(24, 0, 24),  // 紫
+        MyColor(0, 24, 24),  // 水色
+    ];
+    let off = [RGB8 { r: 0, g: 0, b: 0 }];
 
     loop {
-        println!("set: white");
-        if let Err(e) = neopixel.write(white.iter().copied()) {
-            println!("write error (white): {:?}", e);
+        let color_index = (rng.random() as usize) % colors.len();
+        let mut color = colors[color_index];
+
+        // 50%の確率で明るさを半分にする
+        let is_half = (rng.random() % 2) == 0;
+        if is_half {
+            color = color.half_brightness();
+        }
+
+        let current_color = [color.to_rgb8()];
+
+        println!(
+            "set: color index {}, brightness: {}",
+            color_index,
+            if is_half { "half" } else { "full" }
+        );
+        if let Err(e) = neopixel.write(current_color.iter().copied()) {
+            println!("write error (color): {:?}", e);
         }
 
         let t0 = Instant::now();
         while t0.elapsed() < Duration::from_millis(500) {}
 
-        println!("set: off");
-        if let Err(e) = neopixel.write(off.iter().copied()) {
-            println!("write error (off): {:?}", e);
-        }
-
-        let t0 = Instant::now();
-        while t0.elapsed() < Duration::from_millis(500) {}
+        // println!("set: off");
+        // if let Err(e) = neopixel.write(off.iter().copied()) {
+        //     println!("write error (off): {:?}", e);
+        // }
+        //
+        // let t0 = Instant::now();
+        // while t0.elapsed() < Duration::from_millis(500) {}
     }
 }
