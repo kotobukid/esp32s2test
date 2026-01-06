@@ -118,18 +118,16 @@ fn main() -> ! {
                 if let Err(e) = neopixel.write(current_color.iter().copied()) {
                     println!("write error (color): {:?}", e);
                 }
-
-                let t0 = Instant::now();
-                while t0.elapsed() < Duration::from_millis(500) {}
             } else {
                 println!("set: off");
                 if let Err(e) = neopixel.write(off.iter().copied()) {
                     println!("write error (off): {:?}", e);
                 }
-
-                let t0 = Instant::now();
-                while t0.elapsed() < Duration::from_millis(500) {}
             }
+
+            // チャタリング防止
+            let t0 = Instant::now();
+            while t0.elapsed() < Duration::from_millis(20) {}
         }
     }
 }
