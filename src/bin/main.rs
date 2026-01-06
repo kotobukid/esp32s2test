@@ -8,6 +8,7 @@
 #![deny(clippy::large_stack_frames)]
 
 use esp_hal::clock::CpuClock;
+use esp_hal::gpio::{Input, InputConfig, Pull};
 use esp_hal::main;
 use esp_hal::rng::Rng;
 use esp_hal::time::{Duration, Instant, Rate};
@@ -65,6 +66,9 @@ fn main() -> ! {
     let mut neopixel: SmartLedsAdapter<'_, RMT_BUFFER_SIZE, Blocking, RGB8, Grb, Ws2812bTiming> =
         SmartLedsAdapter::new(rmt.channel0, peripherals.GPIO18).unwrap();
 
+    let pin17 = Input::new(peripherals.GPIO17, InputConfig::default().with_pull(Pull::Up));
+    let mut last_pin17_state = pin17.is_high();
+
     println!("boot: neopixel adapter ready");
 
     let colors = [
@@ -79,6 +83,12 @@ fn main() -> ! {
     let off = [RGB8 { r: 0, g: 0, b: 0 }];
 
     loop {
+        let current_pin17_state = pin17.is_high();
+        if current_pin17_state != last_pin17_state {
+            println!("pin17 state changed: {}", current_pin17_state);
+            last_pin17_state = current_pin17_state;
+        }
+
         let color_index = (rng.random() as usize) % colors.len();
         let mut color = colors[color_index];
 
