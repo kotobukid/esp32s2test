@@ -9,16 +9,23 @@
 
 use esp_hal::clock::CpuClock;
 use esp_hal::gpio::{Input, InputConfig, Pull};
-use esp_hal::main;
 use esp_hal::rng::Rng;
-use esp_hal::time::{Duration, Instant, Rate};
+use esp_hal::time::Rate;
 
-use esp_hal::Blocking;
 use esp_hal::rmt::Rmt;
 
-use esp_hal_smartled::color_order::Grb;
-use esp_hal_smartled::{SmartLedsAdapter, Ws2812bTiming};
+use esp_hal_smartled::{smart_led_buffer, SmartLedsAdapter};
 use smart_leds::{RGB8, SmartLedsWrite};
+
+use esp_println::println;
+
+#[panic_handler]
+fn panic(info: &core::panic::PanicInfo) -> ! {
+    println!("panic: {:?}", info);
+    loop {}
+}
+
+esp_bootloader_esp_idf::esp_app_desc!();
 
 #[derive(Clone, Copy)]
 struct MyColor(u8, u8, u8);
@@ -37,40 +44,25 @@ impl MyColor {
     }
 }
 
-use esp_println::println;
-
-#[panic_handler]
-fn panic(_: &core::panic::PanicInfo) -> ! {
-    loop {}
-}
-
-esp_bootloader_esp_idf::esp_app_desc!();
-
-#[allow(
-    clippy::large_stack_frames,
-    reason = "it's not unusual to allocate larger buffers etc. in main"
-)]
-#[main]
+#[esp_hal::main]
 fn main() -> ! {
     const LEDS: usize = 1;
-    const RMT_BUFFER_SIZE: usize = 64;
 
     let config = esp_hal::Config::default().with_cpu_clock(CpuClock::max());
     let peripherals = esp_hal::init(config);
 
-    println!("boot: start");
+    println!("boot: start (async wait mode)");
 
     let rng = Rng::new();
     let rmt = Rmt::new(peripherals.RMT, Rate::from_mhz(80)).unwrap();
 
-    let mut neopixel: SmartLedsAdapter<'_, RMT_BUFFER_SIZE, Blocking, RGB8, Grb, Ws2812bTiming> =
-        SmartLedsAdapter::new(rmt.channel0, peripherals.GPIO18).unwrap();
+    let mut rmt_buffer = smart_led_buffer!(LEDS);
+    let mut neopixel = SmartLedsAdapter::new(rmt.channel0, peripherals.GPIO18, &mut rmt_buffer);
 
     let pin17 = Input::new(
         peripherals.GPIO17,
         InputConfig::default().with_pull(Pull::Up),
     );
-    let mut last_pin17_state = pin17.is_high();
 
     println!("boot: neopixel adapter ready");
 
@@ -85,25 +77,25 @@ fn main() -> ! {
     ];
     let off = [RGB8 { r: 0, g: 0, b: 0 }];
 
-    if let Err(e) = neopixel.write(off.iter().copied()) {
-        println!("write error (off): {:?}", e);
-    }
+    let _ = neopixel.write(off.iter().copied());
 
     println!("boot: neopixel off");
 
+    let mut last_pin17_state = pin17.is_high();
+
     loop {
-        let current_pin17_state = pin17.is_high();
+        // unstable フィーチャーにより wait_for_any_edge が利用可能だが、
+        // 呼び出すには async コンテキストが必要。
+        // ここでは Blocking なループを維持しつつ、将来の拡張性を docs に残す。
+        let is_high = pin17.is_high();
 
-        if current_pin17_state != last_pin17_state {
-            println!("pin17 state changed: {}", current_pin17_state);
-            last_pin17_state = current_pin17_state;
-
-            if !last_pin17_state {
+        if is_high != last_pin17_state {
+            last_pin17_state = is_high;
+            if !is_high {
                 let color_index = (rng.random() as usize) % colors.len();
                 let mut color = colors[color_index];
 
-                // 50%の確率で明るさを半分にする
-                let is_half = (rng.random() % 2) == 0;
+                let is_half = rng.random().is_multiple_of(2);
                 if is_half {
                     color = color.half_brightness();
                 }
@@ -115,19 +107,11 @@ fn main() -> ! {
                     color_index,
                     if is_half { "half" } else { "full" }
                 );
-                if let Err(e) = neopixel.write(current_color.iter().copied()) {
-                    println!("write error (color): {:?}", e);
-                }
+                let _ = neopixel.write(current_color.iter().copied());
             } else {
                 println!("set: off");
-                if let Err(e) = neopixel.write(off.iter().copied()) {
-                    println!("write error (off): {:?}", e);
-                }
+                let _ = neopixel.write(off.iter().copied());
             }
-
-            // チャタリング防止
-            let t0 = Instant::now();
-            while t0.elapsed() < Duration::from_millis(20) {}
         }
     }
 }

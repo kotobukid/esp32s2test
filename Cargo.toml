@@ -9,18 +9,15 @@ name = "esptes"
 path = "./src/bin/main.rs"
 
 [dependencies]
-esp-hal = { version = "~1.0", features = ["esp32s2", "unstable"] }
-
-
-esp-bootloader-esp-idf = { version = "0.4.0", features = ["esp32s2"] }
-
-critical-section = "1.2.0"
-
-# NeoPixel(RMT)用：smart-leds + esp-hal向けアダプタ
+esp-hal = { version = "1.0.0", features = ["esp32s2", "unstable"] }
+embassy-executor = { version = "0.7.0", features = ["task-arena-size-12288"] }
+embassy-time = { version = "0.4.0", features = ["generic-queue-8"] }
+esp-println = { version = "0.13.0", features = ["esp32s2"] }
+esp-backtrace = { version = "0.15.0", features = ["esp32s2", "panic-handler", "exception-handler", "println"] }
+static_cell = "2.1.0"
 smart-leds = "0.4"
-esp-hal-smartled2 = "0.27.0"
-
-esp-println = {version = "0.16.1", features = ["esp32s2"]}
+esp-hal-smartled = { version = "0.17.0", features = ["esp32s2"] }
+esp-bootloader-esp-idf = { version = "0.4.0", features = ["esp32s2"] }
 
 [profile.dev]
 # Rust debug is too slow.
