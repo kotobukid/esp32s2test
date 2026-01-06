@@ -66,7 +66,10 @@ fn main() -> ! {
     let mut neopixel: SmartLedsAdapter<'_, RMT_BUFFER_SIZE, Blocking, RGB8, Grb, Ws2812bTiming> =
         SmartLedsAdapter::new(rmt.channel0, peripherals.GPIO18).unwrap();
 
-    let pin17 = Input::new(peripherals.GPIO17, InputConfig::default().with_pull(Pull::Up));
+    let pin17 = Input::new(
+        peripherals.GPIO17,
+        InputConfig::default().with_pull(Pull::Up),
+    );
     let mut last_pin17_state = pin17.is_high();
 
     println!("boot: neopixel adapter ready");
@@ -82,42 +85,51 @@ fn main() -> ! {
     ];
     let off = [RGB8 { r: 0, g: 0, b: 0 }];
 
+    if let Err(e) = neopixel.write(off.iter().copied()) {
+        println!("write error (off): {:?}", e);
+    }
+
+    println!("boot: neopixel off");
+
     loop {
         let current_pin17_state = pin17.is_high();
+
         if current_pin17_state != last_pin17_state {
             println!("pin17 state changed: {}", current_pin17_state);
             last_pin17_state = current_pin17_state;
+
+            if !last_pin17_state {
+                let color_index = (rng.random() as usize) % colors.len();
+                let mut color = colors[color_index];
+
+                // 50%の確率で明るさを半分にする
+                let is_half = (rng.random() % 2) == 0;
+                if is_half {
+                    color = color.half_brightness();
+                }
+
+                let current_color = [color.to_rgb8()];
+
+                println!(
+                    "set: color index {}, brightness: {}",
+                    color_index,
+                    if is_half { "half" } else { "full" }
+                );
+                if let Err(e) = neopixel.write(current_color.iter().copied()) {
+                    println!("write error (color): {:?}", e);
+                }
+
+                let t0 = Instant::now();
+                while t0.elapsed() < Duration::from_millis(500) {}
+            } else {
+                println!("set: off");
+                if let Err(e) = neopixel.write(off.iter().copied()) {
+                    println!("write error (off): {:?}", e);
+                }
+
+                let t0 = Instant::now();
+                while t0.elapsed() < Duration::from_millis(500) {}
+            }
         }
-
-        let color_index = (rng.random() as usize) % colors.len();
-        let mut color = colors[color_index];
-
-        // 50%の確率で明るさを半分にする
-        let is_half = (rng.random() % 2) == 0;
-        if is_half {
-            color = color.half_brightness();
-        }
-
-        let current_color = [color.to_rgb8()];
-
-        println!(
-            "set: color index {}, brightness: {}",
-            color_index,
-            if is_half { "half" } else { "full" }
-        );
-        if let Err(e) = neopixel.write(current_color.iter().copied()) {
-            println!("write error (color): {:?}", e);
-        }
-
-        let t0 = Instant::now();
-        while t0.elapsed() < Duration::from_millis(500) {}
-
-        // println!("set: off");
-        // if let Err(e) = neopixel.write(off.iter().copied()) {
-        //     println!("write error (off): {:?}", e);
-        // }
-        //
-        // let t0 = Instant::now();
-        // while t0.elapsed() < Duration::from_millis(500) {}
     }
 }
